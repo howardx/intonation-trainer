@@ -1,5 +1,5 @@
 import './styles.css';
-import { AudioEngine } from './audio';
+import { AudioEngine, installAudioUnlock } from './audio';
 import { createKeyboard } from './keyboard';
 import { createControls, createInstallHint, setupWakeLock, type LabelMode, type Mode } from './ui';
 
@@ -60,12 +60,11 @@ const hint = createInstallHint();
 if (hint) app.appendChild(hint);
 app.appendChild(keyboard.element);
 
-// Audio unlock + wake lock on the very first gesture anywhere.
-window.addEventListener(
-  'pointerdown',
-  () => {
-    void engine.resume();
-    wakeLock.onFirstInteraction();
-  },
-  { capture: true },
-);
+// Audio unlock: retries on pointerdown/pointerup/touchend/click/keydown
+// until the context runs — WebKit only accepts some of these as activation.
+installAudioUnlock(engine);
+
+// Wake lock on the first gesture anywhere.
+window.addEventListener('pointerdown', () => wakeLock.onFirstInteraction(), {
+  capture: true,
+});

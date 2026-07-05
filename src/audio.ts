@@ -19,6 +19,15 @@ export class AudioEngine {
 
   private ensure(): AudioContext {
     if (!this.ctx) {
+      // iOS 16.4+: without this, the hardware silent switch mutes Web Audio.
+      const nav = navigator as Navigator & { audioSession?: { type: string } };
+      if (typeof navigator !== 'undefined' && nav.audioSession) {
+        try {
+          nav.audioSession.type = 'playback';
+        } catch {
+          /* older iOS — ignore */
+        }
+      }
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
       this.master.gain.value = this.volume;
@@ -27,9 +36,21 @@ export class AudioEngine {
     return this.ctx;
   }
 
-  /** Call on the first user gesture — iOS/Safari require it to unlock audio. */
+  /**
+   * Attempt to unlock audio. WebKit rejects resume() from gestures it does
+   * not consider activation events (e.g. pointerdown/touchstart), so this
+   * must be safe to call repeatedly until isRunning() reports true.
+   */
   async resume(): Promise<void> {
-    await this.ensure().resume();
+    try {
+      await this.ensure().resume();
+    } catch {
+      /* not a valid activation gesture yet — caller will retry */
+    }
+  }
+
+  isRunning(): boolean {
+    return this.ctx?.state === 'running';
   }
 
   setVolume(v: number): void {
@@ -96,4 +117,27 @@ export class AudioEngine {
   activeNotes(): number[] {
     return [...this.active.keys()];
   }
+}
+
+/**
+ * Retry AudioContext.resume() on every gesture until the context runs, then
+ * detach. pointerdown alone is NOT enough: WebKit (all iOS browsers) only
+ * grants audio activation on touchend/click/keydown — a pointerdown-only
+ * unlock leaves iPhones permanently silent.
+ */
+export function installAudioUnlock(
+  engine: AudioEngine,
+  target: EventTarget = window,
+): () => void {
+  const events = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'];
+  const tryUnlock = () => {
+    void engine.resume().then(() => {
+      if (engine.isRunning()) cleanup();
+    });
+  };
+  const cleanup = () => {
+    for (const ev of events) target.removeEventListener(ev, tryUnlock, { capture: true });
+  };
+  for (const ev of events) target.addEventListener(ev, tryUnlock, { capture: true });
+  return cleanup;
 }

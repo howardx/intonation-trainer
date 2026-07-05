@@ -22,6 +22,19 @@ instruction to pick sensible defaults and record them here.
   events); uncaught, that exception would abort the note logic. Found during
   headless-browser verification.
 
+## Mobile audio unlock (bug fix, 2026-07-05)
+
+First real-device test: keys highlighted but produced no sound on a phone.
+Root cause: audio unlock called `AudioContext.resume()` only on `pointerdown`,
+but WebKit (all iOS browsers) does not grant audio activation for
+pointerdown/touchstart — only touchend/click/keydown — so the context stayed
+suspended forever. Fix: `installAudioUnlock()` retries `resume()` on
+pointerdown/pointerup/touchend/click/keydown until the context reports
+`running`, then detaches. Also sets `navigator.audioSession.type = 'playback'`
+(iOS 16.4+) so the hardware silent switch does not mute the app — teachers
+routinely keep phones on silent. Regression-verified in Chrome under the
+default (strict) autoplay policy.
+
 ## Labels
 
 - Black keys show their note name in **all** label modes (spec: "black keys

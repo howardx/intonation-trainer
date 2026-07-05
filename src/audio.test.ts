@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { AudioEngine } from './audio';
+import { AudioEngine, installAudioUnlock } from './audio';
 
 /**
  * Minimal Web Audio fake — just enough surface for AudioEngine's
@@ -63,6 +63,10 @@ class FakeAudioContext {
   oscillators: FakeOscillator[] = [];
   gains: FakeGainNode[] = [];
   resumed = false;
+  state = 'suspended';
+  /** iOS-style behavior: resume() only succeeds when the fake allows it. */
+  unlockable = true;
+  resumeCalls = 0;
   createOscillator() {
     const o = new FakeOscillator();
     this.oscillators.push(o);
@@ -74,7 +78,10 @@ class FakeAudioContext {
     return g;
   }
   async resume() {
+    this.resumeCalls++;
+    if (!this.unlockable) throw new DOMException('gesture required', 'NotAllowedError');
     this.resumed = true;
+    this.state = 'running';
   }
 }
 
@@ -187,6 +194,60 @@ describe('AudioEngine controls', () => {
     const e = new AudioEngine();
     await e.resume();
     expect(lastCtx.resumed).toBe(true);
+  });
+});
+
+describe('audio unlock (mobile gesture requirements)', () => {
+  // fake-timer-safe flush: drain several microtask hops (resume → then → cleanup)
+  const flush = async () => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+  };
+
+  test('resume survives NotAllowedError (WebKit rejects non-activation gestures)', async () => {
+    const e = new AudioEngine();
+    e.noteOn(60); // creates the ctx
+    lastCtx.unlockable = false;
+    await expect(e.resume()).resolves.toBeUndefined();
+  });
+
+  test('unlock retries on every gesture type until the context runs', async () => {
+    const e = new AudioEngine();
+    e.noteOn(60); // creates the (suspended) ctx so we can lock it first
+    lastCtx.unlockable = false;
+    const target = new EventTarget();
+    installAudioUnlock(e, target);
+
+    // iOS: pointerdown fires but is not a valid activation — resume fails
+    target.dispatchEvent(new Event('pointerdown'));
+    await flush();
+    expect(lastCtx.resumeCalls).toBeGreaterThan(0);
+    expect(lastCtx.state).toBe('suspended');
+
+    // more pointerdowns keep failing, but we must keep trying
+    target.dispatchEvent(new Event('pointerdown'));
+    await flush();
+    const callsAfterSecond = lastCtx.resumeCalls;
+    expect(callsAfterSecond).toBeGreaterThan(1);
+
+    // touchend IS a valid activation on WebKit — this one must unlock
+    lastCtx.unlockable = true;
+    target.dispatchEvent(new Event('touchend'));
+    await flush();
+    expect(lastCtx.state).toBe('running');
+  });
+
+  test('listeners are removed once running — no resume spam afterwards', async () => {
+    const e = new AudioEngine();
+    const target = new EventTarget();
+    installAudioUnlock(e, target);
+    target.dispatchEvent(new Event('click'));
+    await flush();
+    expect(lastCtx.state).toBe('running');
+    const settled = lastCtx.resumeCalls;
+    target.dispatchEvent(new Event('pointerdown'));
+    target.dispatchEvent(new Event('touchend'));
+    await flush();
+    expect(lastCtx.resumeCalls).toBe(settled);
   });
 });
 
