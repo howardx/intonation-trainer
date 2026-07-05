@@ -83,7 +83,22 @@ const hint = createInstallHint();
 if (hint) app.appendChild(hint);
 const frame = document.createElement('div');
 frame.className = 'keyboard-frame';
-frame.appendChild(keyboard.element);
+for (const [emoji, left] of [
+  ['🐰', '7%'],
+  ['🐥', '55%'],
+  ['🐱', '88%'],
+] as const) {
+  const critter = document.createElement('span');
+  critter.className = 'critter';
+  critter.textContent = emoji;
+  critter.style.left = left;
+  critter.setAttribute('aria-hidden', 'true');
+  frame.appendChild(critter);
+}
+const scroller = document.createElement('div');
+scroller.className = 'keyboard-scroller';
+scroller.appendChild(keyboard.element);
+frame.appendChild(scroller);
 app.appendChild(frame);
 
 // Audio unlock: retries on pointerdown/pointerup/touchend/click/keydown

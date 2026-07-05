@@ -111,3 +111,16 @@ manifest, service worker registration, and **offline reload**. Unit tests
 blip retriggering. Criteria #2 (real-phone multi-touch), #6 (home-screen
 install), and #7 (wake lock) are implemented per spec but need a spot-check on
 a physical phone — no real device was available in the build environment.
+
+## v2.2 (2026-07-05): personalization + warmth
+
+- Title is now "Mrs. Li's Intonation Trainer / 李老师的音准练习" (masthead,
+  browser tab, and PWA manifest; home-screen short name is 音准练习).
+- Background shifted from blush to a light butter-yellow gradient per owner
+  request; rose accent palette retained.
+- Three emoji critters (🐰🐥🐱) peek over the piano's top rim — decorative
+  only (aria-hidden, pointer-events none), positioned in the gap between
+  controls and keys so they never block a touch target, and hidden on short
+  landscape viewports. Deliberately restrained per "don't overdo it".
+- The keyboard's horizontal scrolling moved to an inner .keyboard-scroller
+  so the critters aren't clipped by the frame's overflow.

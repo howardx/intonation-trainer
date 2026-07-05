@@ -1,6 +1,6 @@
 :root {
-  --bg-top: #fdf4f1;
-  --bg-bottom: #f7e6ea;
+  --bg-top: #fdf9ea;
+  --bg-bottom: #f9edcd;
   --card: #fffdfb;
   --white-key: #fffcf8;
   --white-key-edge: #ecdcd6;
@@ -213,15 +213,33 @@ input[type='range'] {
 
 /* ---------- keyboard ---------- */
 
+/* little friends perched on the piano rim — decorative only */
+.critter {
+  position: absolute;
+  top: -21px;
+  font-size: 24px;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 1px 1px rgba(160, 90, 115, 0.2));
+}
+
 .keyboard-frame {
+  position: relative;
   flex: 1;
   display: flex;
   background: var(--card);
   border-radius: 22px;
   padding: 12px;
   box-shadow: 0 8px 28px rgba(160, 90, 115, 0.14);
+}
+
+.keyboard-scroller {
+  flex: 1;
+  display: flex;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
 }
 
 .keyboard {
@@ -336,6 +354,10 @@ input[type='range'] {
 @media (max-height: 420px) {
   .masthead {
     display: none;
+  }
+
+  .critter {
+    display: none; /* no room to perch on cramped landscape screens */
   }
 
   #app {
