@@ -1,15 +1,23 @@
+import type { Instrument } from './audio';
+import { midiToFlatName } from './samples';
+import { WINDOW_STARTS } from './notes';
+
 export type Mode = 'short' | 'sustain';
 export type LabelMode = 'names' | 'solfege' | 'both';
 
 export interface Controls {
   element: HTMLElement;
+  /** Update the octave indicator + arrow disabled states. */
+  setWindow(startMidi: number): void;
 }
 
 export interface ControlHandlers {
   onMode: (mode: Mode) => void;
   onVolume: (v: number) => void;
-  onWaveform: (w: OscillatorType) => void;
+  onInstrument: (i: Instrument) => void;
   onLabels: (l: LabelMode) => void;
+  onOctaveShift: (direction: -1 | 1) => void;
+  onStopAll: () => void;
 }
 
 function segmented<T extends string>(
@@ -74,16 +82,41 @@ export function createControls(handlers: ControlHandlers): Controls {
   volume.value = '0.3';
   volume.addEventListener('input', () => handlers.onVolume(Number(volume.value)));
 
-  const waveform = segmented<OscillatorType>(
-    'Waveform',
+  const instrument = segmented<Instrument>(
+    'Instrument',
     [
-      { value: 'sine', label: 'Sine 正弦' },
-      { value: 'triangle', label: 'Tri 三角' },
-      { value: 'square', label: 'Sq 方波' },
+      { value: 'pure', label: 'Pure 纯音' },
+      { value: 'piano', label: 'Piano 钢琴' },
+      { value: 'strings', label: 'Strings 弦乐' },
     ],
-    'sine',
-    handlers.onWaveform,
+    'pure',
+    handlers.onInstrument,
   );
+
+  // octave window shifter: ◂  C3–C5  ▸
+  const octave = document.createElement('div');
+  octave.className = 'octave-control';
+  const down = document.createElement('button');
+  down.type = 'button';
+  down.className = 'octave-btn';
+  down.textContent = '◂';
+  down.setAttribute('aria-label', 'Lower octave 低八度');
+  const range = document.createElement('span');
+  range.className = 'octave-range';
+  const up = document.createElement('button');
+  up.type = 'button';
+  up.className = 'octave-btn';
+  up.textContent = '▸';
+  up.setAttribute('aria-label', 'Higher octave 高八度');
+  down.addEventListener('click', () => handlers.onOctaveShift(-1));
+  up.addEventListener('click', () => handlers.onOctaveShift(1));
+  octave.append(down, range, up);
+
+  const stop = document.createElement('button');
+  stop.type = 'button';
+  stop.className = 'stop-btn';
+  stop.textContent = '⏹ Stop 停止';
+  stop.addEventListener('click', handlers.onStopAll);
 
   const labels = segmented<LabelMode>(
     'Labels',
@@ -98,11 +131,22 @@ export function createControls(handlers: ControlHandlers): Controls {
 
   bar.append(
     field('Mode 模式', mode),
+    field('Tone 音色', instrument),
+    field('Octave 八度', octave),
     field('Volume 音量', volume),
-    field('Tone 音色', waveform),
     field('Labels 标签', labels),
+    stop,
   );
-  return { element: bar };
+  return {
+    element: bar,
+    setWindow(startMidi) {
+      const first = WINDOW_STARTS[0];
+      const last = WINDOW_STARTS[WINDOW_STARTS.length - 1];
+      range.textContent = `${midiToFlatName(startMidi)}–${midiToFlatName(startMidi + 24)}`;
+      down.disabled = startMidi <= first;
+      up.disabled = startMidi >= last;
+    },
+  };
 }
 
 /**

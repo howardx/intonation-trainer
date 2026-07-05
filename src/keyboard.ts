@@ -1,4 +1,4 @@
-import { NOTES, type NoteInfo } from './notes';
+import { DEFAULT_WINDOW_START, windowNotes, type NoteInfo } from './notes';
 
 export interface KeyboardHandlers {
   /** Fired on pointerdown for any key. */
@@ -11,9 +11,13 @@ export interface Keyboard {
   element: HTMLElement;
   /** Reflect engine state: highlight keys whose midi is in the set. */
   setActive(active: ReadonlySet<number>): void;
+  /** Rebuild the keys for a 2-octave window starting at this C. */
+  setWindow(startMidi: number): void;
+  /** Midi numbers currently displayed. */
+  visibleMidis(): number[];
 }
 
-const WHITE_COUNT = NOTES.filter((n) => !n.isBlack).length;
+const WHITE_COUNT = 15; // any C-to-C 2-octave window
 
 function buildKey(note: NoteInfo, whiteIndex: number): HTMLButtonElement {
   const key = document.createElement('button');
@@ -52,13 +56,21 @@ export function createKeyboard(handlers: KeyboardHandlers): Keyboard {
   board.setAttribute('aria-label', 'Piano keyboard C3 to C5');
 
   const keyByMidi = new Map<number, HTMLButtonElement>();
-  let whiteIndex = 0;
-  for (const note of NOTES) {
-    if (!note.isBlack) whiteIndex++;
-    const key = buildKey(note, whiteIndex);
-    keyByMidi.set(note.midi, key);
-    board.appendChild(key);
-  }
+  let notes: NoteInfo[] = [];
+
+  const build = (startMidi: number) => {
+    keyByMidi.clear();
+    board.replaceChildren();
+    notes = windowNotes(startMidi);
+    let whiteIndex = 0;
+    for (const note of notes) {
+      if (!note.isBlack) whiteIndex++;
+      const key = buildKey(note, whiteIndex);
+      keyByMidi.set(note.midi, key);
+      board.appendChild(key);
+    }
+  };
+  build(DEFAULT_WINDOW_START);
 
   const midiOf = (el: EventTarget | null): number | null => {
     if (!(el instanceof HTMLElement)) return null;
@@ -100,6 +112,12 @@ export function createKeyboard(handlers: KeyboardHandlers): Keyboard {
       for (const [midi, el] of keyByMidi) {
         el.classList.toggle('active', active.has(midi));
       }
+    },
+    setWindow(startMidi) {
+      build(startMidi);
+    },
+    visibleMidis() {
+      return notes.map((n) => n.midi);
     },
   };
 }

@@ -13,8 +13,8 @@ export default defineConfig({
           'Pure-tone piano with sustained drones for singing in tune. 音准练习：持续纯音钢琴。',
         display: 'standalone',
         orientation: 'any',
-        theme_color: '#06A77D',
-        background_color: '#F4F1EA',
+        theme_color: '#C0587C',
+        background_color: '#FDF4F1',
         icons: [
           { src: 'icons/192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/512.png', sizes: '512x512', type: 'image/png' },
@@ -27,7 +27,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,png,mp3,webmanifest}'],
       },
     }),
   ],

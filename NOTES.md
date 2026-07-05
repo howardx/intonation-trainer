@@ -35,6 +35,33 @@ pointerdown/pointerup/touchend/click/keydown until the context reports
 routinely keep phones on silent. Regression-verified in Chrome under the
 default (strict) autoplay policy.
 
+## v2 (2026-07-05): instruments, full range, redesign
+
+Owner requests overriding the v1 "pure synthesis only / C3–C5 only" spec lock:
+
+- **Instruments**: owner asked for piano/guitar/violin; agreed set is
+  Pure 纯音 (sine, default) + sampled Piano 钢琴 + sampled Strings 弦乐
+  (FluidR3_GM via midi-js-soundfonts, MIT). Strings replace solo violin
+  (ensemble sound loops convincingly for drones; solo violin and guitar
+  samples decay and cannot drone). Pure remains default because a beat-free
+  steady tone is still the best intonation reference.
+- Sampled notes use a 3-semitone grid pitch-shifted via playbackRate (±1
+  semitone max) — 29 files per instrument, ~1.4 MB total, all precached.
+  First load grows from ~17 KB to ~1.35 MB; still one-time-only.
+- Strings drone = looped middle section of the sample (30%–85%); there may be
+  a subtle seam at the loop point — inherent to sample looping.
+- Instrument loudness trims (pure 0.9 / piano 1.5 / strings 1.2) roughly
+  level-match; tuned by construction, not by ear.
+- **Range**: octave-shift buttons slide the 25-key window between C1 and C8.
+  A0/B0 (the lowest two piano keys) are omitted to keep windows C-aligned.
+  Drones deliberately keep ringing across octave shifts (drone low, sing
+  high); a ⏹ Stop button silences everything, and switching mode or
+  instrument also stops all notes.
+- **Aesthetics**: "ballet studio pastel" per owner choice — rose/cream
+  palette, serif masthead, card layout. Icons and manifest re-branded to
+  match (#C0587C). Masthead hides on short landscape viewports to keep keys
+  tall.
+
 ## Labels
 
 - Black keys show their note name in **all** label modes (spec: "black keys

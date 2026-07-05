@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
 
-const BG = [0x06, 0xa7, 0x7d, 0xff];
+const BG = [0xc0, 0x58, 0x7c, 0xff]; // ballet rose
 const FG = [0xff, 0xff, 0xff, 0xff];
 
 function drawIcon(size, glyphScale) {

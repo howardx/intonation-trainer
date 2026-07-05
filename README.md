@@ -17,8 +17,13 @@ offline (PWA with precached assets).
 - **Sustain 持续** (default): tap a key to start a drone, tap it again to stop.
   Tap several keys for intervals/chords. Multi-touch works on phones.
 - **Short 短音**: tap a key for a brief (~350 ms) reference note.
-- **Volume 音量** slider, **Tone 音色** (sine/triangle/square), and
-  **Labels 标签** (note names / solfège / both) in the top bar.
+- **Tone 音色**: Pure 纯音 (sine — rings forever, best for drone work),
+  Piano 钢琴 and Strings 弦乐 (real recorded samples; strings loop so drones
+  sustain, piano decays naturally like a held pedal note).
+- **Octave 八度** ◂ ▸ slides the 2-octave window from **C1 up to C8** — drones
+  keep ringing while you shift, so you can drone a low C and sing against it
+  two octaves higher. **⏹ Stop 停止** silences everything at once.
+- **Volume 音量** slider and **Labels 标签** (note names / solfège / both).
 - On a phone, use **Add to Home Screen / 添加到主屏幕** — the app then opens
   standalone and works with no network.
 
@@ -51,3 +56,13 @@ re-deployed unchanged to Cloudflare Pages or Tencent Cloud static hosting.
 The PWA icons (192/512/maskable) are generated programmatically by
 `scripts/gen-icons.mjs` — a dependency-free Node script that draws an
 eighth-note pair and hand-encodes the PNGs. No external icon assets were used.
+
+## Instrument samples
+
+Piano and strings notes in `public/samples/` come from the
+[midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) renders of
+the **FluidR3_GM** soundfont (MIT license, by Frank Wen). Only every third
+semitone is stored (29 notes per instrument, ~1.4 MB total); in-between
+pitches are played by shifting the nearest sample's playback rate by at most
+one semitone. All samples are precached by the service worker, so instruments
+work fully offline.

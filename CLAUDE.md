@@ -16,16 +16,22 @@ vercel deploy --prod               # deploy dist/ (pure static, no env vars)
 
 ## What this is
 
-An offline-first PWA piano (C3–C5, 25 keys) that plays pure tones for choir
-intonation training. Vanilla TypeScript + raw Web Audio API — **no framework
-and no audio libraries by explicit design decision**; do not introduce React,
-Tone.js, or audio sample assets. Everything is synthesized, so the app has
-zero runtime network dependencies.
+An offline-first PWA piano for choir intonation training: a 25-key window
+that octave-shifts across C1–C8, with a pure sine tone (default) plus sampled
+Piano and Strings. Vanilla TypeScript + raw Web Audio API — **no framework
+and no audio libraries by explicit design decision**; do not introduce React
+or Tone.js. Instrument samples live in `public/samples/` (FluidR3 soundfont,
+3-semitone grid, pitch-shifted via playbackRate — see `src/samples.ts`) and
+are precached by the service worker, so everything still works offline.
 
 ## Architecture
 
-- `src/notes.ts` — pure data: `midiToFreq` (A4=440, 12-TET) and the `NOTES`
-  table (midi 48–72) with names/solfège (fixed do, C=do). No DOM, no audio.
+- `src/notes.ts` — pure data: `midiToFreq` (A4=440, 12-TET), `windowNotes()`
+  (any 25-key C-to-C window) and `WINDOW_STARTS` (C1..C6), names/solfège
+  (fixed do, C=do). No DOM, no audio.
+- `src/samples.ts` — pure data: the sample grid (every 3rd semitone C1–C8),
+  flat-name mapping matching the mp3 filenames, and nearest-sample +
+  playbackRate resolution.
 - `src/audio.ts` — `AudioEngine`, the only module that touches Web Audio.
   Invariants that must hold:
   - exactly one lazily-created `AudioContext`, `resume()`d on first user
@@ -34,7 +40,12 @@ zero runtime network dependencies.
     release) — a bare start or stop at full gain clicks audibly;
   - exponential ramps target `0.0001`, never 0 (Web Audio throws);
   - polyphony is a `Map<midi, voice>`; each short-mode blip owns its
-    auto-release timer so a retrigger can't be killed by a stale timeout.
+    auto-release timer so a retrigger can't be killed by a stale timeout;
+  - voices are oscillators ('pure') or AudioBufferSourceNodes (sampled);
+    strings loop their sample's middle for endless drones, piano decays and
+    fires `onNoteEnded` so the UI can clear the highlight; a `noteOn` before
+    its sample is decoded parks a 'pending' voice that plays on arrival
+    unless released first.
 - `src/keyboard.ts` — builds the piano DOM, translates Pointer Events to
   `onKeyDown/onKeyUp(midi)`. Tracks pointers by `pointerId` for multi-touch.
   `setPointerCapture` is deliberately try/catch'd (throws on already-released

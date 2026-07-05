@@ -57,11 +57,34 @@ class FakeOscillator {
   disconnect() {}
 }
 
+class FakeBufferSource {
+  buffer: unknown = null;
+  playbackRate = new FakeParam(1);
+  loop = false;
+  loopStart = 0;
+  loopEnd = 0;
+  started: number | null = null;
+  stopped: number | null = null;
+  onended: (() => void) | null = null;
+  connect(dest: unknown) {
+    return dest;
+  }
+  start(t: number) {
+    this.started = t;
+  }
+  stop(t: number) {
+    this.stopped = t;
+  }
+  disconnect() {}
+}
+
 class FakeAudioContext {
   currentTime = 0;
   destination = {};
   oscillators: FakeOscillator[] = [];
   gains: FakeGainNode[] = [];
+  bufferSources: FakeBufferSource[] = [];
+  decoded = 0;
   resumed = false;
   state = 'suspended';
   /** iOS-style behavior: resume() only succeeds when the fake allows it. */
@@ -76,6 +99,15 @@ class FakeAudioContext {
     const g = new FakeGainNode();
     this.gains.push(g);
     return g;
+  }
+  createBufferSource() {
+    const s = new FakeBufferSource();
+    this.bufferSources.push(s);
+    return s;
+  }
+  async decodeAudioData(_ab: ArrayBuffer) {
+    this.decoded++;
+    return { duration: 3 };
   }
   async resume() {
     this.resumeCalls++;
@@ -160,7 +192,7 @@ describe('AudioEngine envelopes', () => {
     const events = perNote.gain.events;
     expect(events[0].kind).toBe('set');
     expect(events[0].value).toBeLessThanOrEqual(0.001);
-    expect(events.some((ev) => ev.kind === 'expRamp' && ev.value === 1)).toBe(true);
+    expect(events.some((ev) => ev.kind === 'expRamp' && ev.value > 0.5)).toBe(true);
   });
 });
 
@@ -179,15 +211,6 @@ describe('AudioEngine controls', () => {
     e.setVolume(0.5);
     const master = lastCtx.gains[0];
     expect(master.gain.events.some((ev) => ev.kind === 'target' && ev.value === 0.5)).toBe(true);
-  });
-
-  test('setWaveform retypes active oscillators and future notes', () => {
-    const e = new AudioEngine();
-    e.noteOn(60);
-    e.setWaveform('triangle');
-    expect(lastCtx.oscillators[0].type).toBe('triangle');
-    e.noteOn(64);
-    expect(lastCtx.oscillators[1].type).toBe('triangle');
   });
 
   test('resume resumes the shared context (audio unlock)', async () => {
@@ -248,6 +271,99 @@ describe('audio unlock (mobile gesture requirements)', () => {
     target.dispatchEvent(new Event('touchend'));
     await flush();
     expect(lastCtx.resumeCalls).toBe(settled);
+  });
+});
+
+describe('sampled instruments', () => {
+  const flushMicro = async () => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(8),
+      })),
+    );
+  });
+
+  test('piano noteOn plays a pitch-shifted buffer source after preload', async () => {
+    const e = new AudioEngine();
+    e.setInstrument('piano');
+    await e.preload([61]);
+    e.noteOn(61);
+    expect(e.isOn(61)).toBe(true);
+    expect(lastCtx.bufferSources).toHaveLength(1);
+    const src = lastCtx.bufferSources[0];
+    expect(src.playbackRate.value).toBeCloseTo(Math.pow(2, 1 / 12), 6);
+    expect(src.started).not.toBeNull();
+    expect(src.loop).toBe(false); // piano decays naturally
+  });
+
+  test('strings loop so drones keep ringing', async () => {
+    const e = new AudioEngine();
+    e.setInstrument('strings');
+    await e.preload([60]);
+    e.noteOn(60);
+    expect(lastCtx.bufferSources[0].loop).toBe(true);
+  });
+
+  test('each sample file is fetched and decoded once, then cached', async () => {
+    const e = new AudioEngine();
+    e.setInstrument('piano');
+    await e.preload([60, 61]); // both resolve to C4.mp3
+    await e.preload([60]);
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+    expect(lastCtx.decoded).toBe(1);
+  });
+
+  test('noteOn before the buffer arrives still sounds once loaded', async () => {
+    const e = new AudioEngine();
+    e.setInstrument('piano');
+    e.noteOn(60); // nothing cached yet
+    expect(e.isOn(60)).toBe(true); // pending — key lights immediately
+    await flushMicro();
+    expect(lastCtx.bufferSources.length).toBe(1); // played on arrival
+  });
+
+  test('noteOff before the buffer arrives cancels the pending note', async () => {
+    const e = new AudioEngine();
+    e.setInstrument('piano');
+    e.noteOn(60);
+    e.noteOff(60);
+    await flushMicro();
+    expect(lastCtx.bufferSources.length).toBe(0);
+    expect(e.isOn(60)).toBe(false);
+  });
+
+  test('piano natural decay ends the note and notifies the UI', async () => {
+    const e = new AudioEngine();
+    const ended: number[] = [];
+    e.onNoteEnded = (m) => ended.push(m);
+    e.setInstrument('piano');
+    await e.preload([60]);
+    e.noteOn(60);
+    lastCtx.bufferSources[0].onended?.();
+    expect(e.isOn(60)).toBe(false);
+    expect(ended).toEqual([60]);
+  });
+
+  test('pure instrument still uses oscillators', async () => {
+    const e = new AudioEngine();
+    e.setInstrument('pure');
+    e.noteOn(60);
+    expect(lastCtx.oscillators).toHaveLength(1);
+    expect(lastCtx.bufferSources).toHaveLength(0);
+  });
+
+  test('stopAll silences every ringing voice', async () => {
+    const e = new AudioEngine();
+    e.noteOn(60);
+    e.noteOn(64);
+    e.stopAll();
+    expect(e.activeNotes()).toEqual([]);
   });
 });
 

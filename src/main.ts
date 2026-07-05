@@ -1,10 +1,12 @@
 import './styles.css';
 import { AudioEngine, installAudioUnlock } from './audio';
 import { createKeyboard } from './keyboard';
+import { DEFAULT_WINDOW_START, WINDOW_STARTS } from './notes';
 import { createControls, createInstallHint, setupWakeLock, type LabelMode, type Mode } from './ui';
 
 const engine = new AudioEngine();
 let mode: Mode = 'sustain'; // drone is the core use case
+let windowStart = DEFAULT_WINDOW_START;
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const wakeLock = setupWakeLock();
@@ -33,10 +35,15 @@ const keyboard = createKeyboard({
   },
 });
 
+// sampled piano notes decay on their own — clear their highlight when they do
+engine.onNoteEnded = () => refreshActive();
+
 const stopAll = () => {
-  for (const midi of engine.activeNotes()) engine.noteOff(midi);
+  engine.stopAll();
   refreshActive();
 };
+
+const preloadVisible = () => void engine.preload(keyboard.visibleMidis());
 
 const controls = createControls({
   onMode(m) {
@@ -46,19 +53,36 @@ const controls = createControls({
   onVolume(v) {
     engine.setVolume(v);
   },
-  onWaveform(w) {
-    engine.setWaveform(w);
+  onInstrument(i) {
+    stopAll(); // an oscillator drone can't morph into a sample — restart clean
+    engine.setInstrument(i);
+    preloadVisible();
   },
   onLabels(l: LabelMode) {
     app.dataset.labels = l;
   },
+  onOctaveShift(direction) {
+    const idx = WINDOW_STARTS.indexOf(windowStart) + direction;
+    if (idx < 0 || idx >= WINDOW_STARTS.length) return;
+    windowStart = WINDOW_STARTS[idx];
+    // drones keep ringing across shifts — shift down to C3, drone it, shift up
+    keyboard.setWindow(windowStart);
+    controls.setWindow(windowStart);
+    refreshActive();
+    preloadVisible();
+  },
+  onStopAll: stopAll,
 });
+controls.setWindow(windowStart);
 
 app.dataset.labels = 'both' satisfies LabelMode;
 app.appendChild(controls.element);
 const hint = createInstallHint();
 if (hint) app.appendChild(hint);
-app.appendChild(keyboard.element);
+const frame = document.createElement('div');
+frame.className = 'keyboard-frame';
+frame.appendChild(keyboard.element);
+app.appendChild(frame);
 
 // Audio unlock: retries on pointerdown/pointerup/touchend/click/keydown
 // until the context runs — WebKit only accepts some of these as activation.

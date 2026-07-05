@@ -5,8 +5,12 @@ export interface NoteInfo {
   isBlack: boolean;
 }
 
-export const LOWEST_MIDI = 48; // C3
-export const HIGHEST_MIDI = 72; // C5
+export const LOWEST_MIDI = 48; // C3 (default window)
+export const HIGHEST_MIDI = 72; // C5 (default window)
+
+/** Valid 2-octave window starts: C1 through C6 (covering C1..C8). */
+export const WINDOW_STARTS: readonly number[] = [24, 36, 48, 60, 72, 84];
+export const DEFAULT_WINDOW_START = 48; // C3
 
 export const midiToFreq = (m: number): number => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -33,7 +37,8 @@ function noteInfo(midi: number): NoteInfo {
   };
 }
 
-export const NOTES: readonly NoteInfo[] = Array.from(
-  { length: HIGHEST_MIDI - LOWEST_MIDI + 1 },
-  (_, i) => noteInfo(LOWEST_MIDI + i),
-);
+/** The 25 notes (C to C, two octaves) of a window starting at `startMidi`. */
+export const windowNotes = (startMidi: number): NoteInfo[] =>
+  Array.from({ length: 25 }, (_, i) => noteInfo(startMidi + i));
+
+export const NOTES: readonly NoteInfo[] = windowNotes(DEFAULT_WINDOW_START);

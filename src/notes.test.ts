@@ -1,5 +1,39 @@
 import { describe, expect, test } from 'vitest';
-import { midiToFreq, NOTES, LOWEST_MIDI, HIGHEST_MIDI } from './notes';
+import {
+  midiToFreq,
+  NOTES,
+  LOWEST_MIDI,
+  HIGHEST_MIDI,
+  windowNotes,
+  WINDOW_STARTS,
+  DEFAULT_WINDOW_START,
+} from './notes';
+
+describe('octave windows (C1..C8 coverage)', () => {
+  test('window starts run C1 through C6, default C3', () => {
+    expect(WINDOW_STARTS).toEqual([24, 36, 48, 60, 72, 84]);
+    expect(DEFAULT_WINDOW_START).toBe(48);
+  });
+
+  test('every window is 25 keys, C to C, 15 white / 10 black', () => {
+    for (const start of WINDOW_STARTS) {
+      const notes = windowNotes(start);
+      expect(notes).toHaveLength(25);
+      expect(notes[0].midi).toBe(start);
+      expect(notes[24].midi).toBe(start + 24);
+      expect(notes.filter((n) => !n.isBlack)).toHaveLength(15);
+    }
+  });
+
+  test('solfège holds in every octave (fixed do)', () => {
+    const low = windowNotes(24); // C1..C3
+    expect(low[0].name).toBe('C1');
+    expect(low[0].solfege).toBe('do');
+    const high = windowNotes(84); // C6..C8
+    expect(high[24].name).toBe('C8');
+    expect(high[24].solfege).toBe('do');
+  });
+});
 
 describe('midiToFreq', () => {
   test('A4 (midi 69) is exactly 440 Hz', () => {
