@@ -52,6 +52,22 @@ Owner requests overriding the v1 "pure synthesis only / C3–C5 only" spec lock:
   a subtle seam at the loop point — inherent to sample looping.
 - Instrument loudness trims (pure 0.9 / piano 1.5 / strings 1.2) roughly
   level-match; tuned by construction, not by ear.
+
+## v2.1 (2026-07-05): seam fix, choir, defaults
+
+- Owner heard the strings loop seam. Hard `loop=true` replaced with
+  **equal-power crossfade looping**: alternating overlapping segments of the
+  sample's steady middle, half-cosine fade curves, 0.4 s overlap, scheduled
+  ahead on the Web Audio clock. Applies to all sustaining sampled
+  instruments.
+- **Pure tone removed from the UI, replaced by Choir 人声** (FluidR3
+  choir_aahs) per owner request — voice-like pitch reference suits a singing
+  class. Order/default now Piano (default) | Strings | Choir. The engine
+  still supports the 'pure' oscillator internally if it's ever wanted back.
+- **Default volume raised 0.3 → 0.55**; a gentle DynamicsCompressor limiter
+  (-12 dB threshold, 6:1) sits after the master gain so stacked drones at
+  the louder default can't clip.
+- Precache is now ~2.1 MB (three sampled instruments).
 - **Range**: octave-shift buttons slide the 25-key window between C1 and C8.
   A0/B0 (the lowest two piano keys) are omitted to keep windows C-aligned.
   Drones deliberately keep ringing across octave shifts (drone low, sing

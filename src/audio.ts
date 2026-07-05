@@ -5,10 +5,25 @@ const ATTACK_S = 0.02; // 20 ms ramp up — no click on start
 const RELEASE_S = 0.05; // 50 ms ramp down — no click on stop
 const SILENT = 0.0001; // exponential ramps cannot target 0
 
-export type Instrument = 'pure' | 'piano' | 'strings';
+export type Instrument = 'pure' | 'piano' | 'strings' | 'choir';
 
 /** Rough loudness trims so switching instruments doesn't jump in volume. */
-const TRIM: Record<Instrument, number> = { pure: 0.9, piano: 1.5, strings: 1.2 };
+const TRIM: Record<Instrument, number> = { pure: 0.9, piano: 1.5, strings: 1.2, choir: 1.3 };
+
+/** Sustaining instruments: drone via crossfade-looped sample segments. */
+const LOOPING = new Set<Instrument>(['strings', 'choir']);
+
+const XFADE_S = 0.4; // crossfade overlap between looped segments
+const LOOKAHEAD_S = 0.5; // schedule the next segment this far ahead
+
+// equal-power fade curves (half-cosine) for seamless segment overlap
+const CURVE_N = 33;
+const FADE_IN = new Float32Array(CURVE_N).map((_, i) =>
+  Math.sin((Math.PI / 2) * (i / (CURVE_N - 1))),
+);
+const FADE_OUT = new Float32Array(CURVE_N).map((_, i) =>
+  Math.cos((Math.PI / 2) * (i / (CURVE_N - 1))),
+);
 
 type Voice =
   | { kind: 'osc'; node: OscillatorNode; gain: GainNode; blipTimer?: ReturnType<typeof setTimeout> }
@@ -18,13 +33,20 @@ type Voice =
       gain: GainNode;
       blipTimer?: ReturnType<typeof setTimeout>;
     }
+  | {
+      kind: 'loop';
+      parts: Array<{ src: AudioBufferSourceNode; g: GainNode }>;
+      gain: GainNode;
+      timer?: ReturnType<typeof setTimeout>;
+      blipTimer?: ReturnType<typeof setTimeout>;
+    }
   | { kind: 'pending'; blipTimer?: ReturnType<typeof setTimeout> };
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private active = new Map<number, Voice>();
-  private volume = 0.3;
+  private volume = 0.55;
   private instrument: Instrument = 'pure';
   private buffers = new Map<string, AudioBuffer>();
   private loading = new Map<string, Promise<AudioBuffer | null>>();
@@ -46,7 +68,15 @@ export class AudioEngine {
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
       this.master.gain.value = this.volume;
-      this.master.connect(this.ctx.destination);
+      // gentle safety limiter: louder defaults + stacked drones must not clip
+      const limiter = this.ctx.createDynamicsCompressor();
+      limiter.threshold.value = -12;
+      limiter.knee.value = 20;
+      limiter.ratio.value = 6;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.25;
+      this.master.connect(limiter);
+      limiter.connect(this.ctx.destination);
     }
     return this.ctx;
   }
@@ -154,16 +184,14 @@ export class AudioEngine {
       });
       return;
     }
+    if (LOOPING.has(instrument)) {
+      this.startLoopingVoice(ctx, midi, buffer, TRIM[instrument]);
+      return;
+    }
     const now = ctx.currentTime;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     src.playbackRate.value = sampleFor(midi).rate;
-    if (instrument === 'strings') {
-      // loop the steady middle of the ensemble sample so drones ring forever
-      src.loop = true;
-      src.loopStart = Math.min(1, buffer.duration * 0.3);
-      src.loopEnd = buffer.duration * 0.85;
-    }
     const gain = this.envelopeIn(ctx, TRIM[instrument], now);
     src.connect(gain).connect(this.master!);
     src.start(now);
@@ -178,6 +206,63 @@ export class AudioEngine {
       }
     };
     this.active.set(midi, { kind: 'buffer', node: src, gain });
+  }
+
+  /**
+   * Endless drone from a finite sample: alternate overlapping segments of
+   * the sample's steady middle, equal-power crossfaded — no hard loop seam.
+   */
+  private startLoopingVoice(
+    ctx: AudioContext,
+    midi: number,
+    buffer: AudioBuffer,
+    trim: number,
+  ): void {
+    const now = ctx.currentTime;
+    const rate = sampleFor(midi).rate;
+    const loopStart = Math.min(0.8, buffer.duration * 0.25);
+    const loopEnd = Math.min(buffer.duration, Math.max(loopStart + 1.2, buffer.duration * 0.9));
+    const segment = loopEnd - loopStart;
+    const gain = this.envelopeIn(ctx, trim, now);
+    gain.connect(this.master!);
+
+    const parts: Array<{ src: AudioBufferSourceNode; g: GainNode }> = [];
+    const voice: Voice = { kind: 'loop', parts, gain };
+
+    const spawn = (when: number, offset: number, dur: number, fadeIn: boolean) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.playbackRate.value = rate;
+      const g = ctx.createGain();
+      if (fadeIn) {
+        g.gain.value = 0;
+        g.gain.setValueCurveAtTime(FADE_IN, when, XFADE_S);
+      }
+      g.gain.setValueCurveAtTime(FADE_OUT, when + dur - XFADE_S, XFADE_S);
+      src.connect(g).connect(gain);
+      src.start(when, offset, dur + 0.05);
+      src.onended = () => {
+        src.disconnect();
+        g.disconnect();
+      };
+      parts.push({ src, g });
+      if (parts.length > 3) parts.splice(0, parts.length - 3); // keep only live parts
+    };
+
+    // first pass plays the natural attack, fading out at the segment's end
+    spawn(now, 0, loopEnd, false);
+    let nextWhen = now + loopEnd - XFADE_S;
+    const scheduleNext = () => {
+      spawn(nextWhen, loopStart, segment, true);
+      nextWhen += segment - XFADE_S;
+      const delayMs = Math.max(0, (nextWhen - LOOKAHEAD_S - ctx.currentTime) * 1000);
+      voice.timer = setTimeout(scheduleNext, delayMs);
+    };
+    voice.timer = setTimeout(
+      scheduleNext,
+      Math.max(0, (nextWhen - LOOKAHEAD_S - ctx.currentTime) * 1000),
+    );
+    this.active.set(midi, voice);
   }
 
   private envelopeIn(ctx: AudioContext, peak: number, now: number): GainNode {
@@ -197,6 +282,19 @@ export class AudioEngine {
     voice.gain.gain.cancelScheduledValues(now);
     voice.gain.gain.setValueAtTime(Math.max(voice.gain.gain.value, SILENT), now);
     voice.gain.gain.exponentialRampToValueAtTime(SILENT, now + RELEASE_S);
+    if (voice.kind === 'loop') {
+      if (voice.timer !== undefined) clearTimeout(voice.timer);
+      const gain = voice.gain;
+      for (const part of voice.parts) {
+        try {
+          part.src.stop(now + RELEASE_S + 0.01);
+        } catch {
+          /* already ended */
+        }
+      }
+      setTimeout(() => gain.disconnect(), (RELEASE_S + 0.05) * 1000);
+      return;
+    }
     const node = voice.node;
     const gain = voice.gain;
     node.onended = () => {

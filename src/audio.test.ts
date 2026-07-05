@@ -24,6 +24,10 @@ class FakeParam {
     this.events.push({ kind: 'target', value, time });
     this.value = value;
   }
+  setValueCurveAtTime(curve: Float32Array, time: number, _dur: number) {
+    this.events.push({ kind: 'curve', value: curve[curve.length - 1], time });
+    this.value = curve[curve.length - 1];
+  }
   cancelScheduledValues(_time: number) {
     this.events.push({ kind: 'cancel', value: 0, time: _time });
   }
@@ -64,16 +68,32 @@ class FakeBufferSource {
   loopStart = 0;
   loopEnd = 0;
   started: number | null = null;
+  startOffset = 0;
   stopped: number | null = null;
   onended: (() => void) | null = null;
   connect(dest: unknown) {
     return dest;
   }
-  start(t: number) {
+  start(t: number, offset = 0) {
     this.started = t;
+    this.startOffset = offset;
   }
   stop(t: number) {
     this.stopped = t;
+  }
+  disconnect() {}
+}
+
+class FakeCompressor {
+  threshold = new FakeParam(-24);
+  knee = new FakeParam(30);
+  ratio = new FakeParam(12);
+  attack = new FakeParam(0.003);
+  release = new FakeParam(0.25);
+  connected: unknown[] = [];
+  connect(dest: unknown) {
+    this.connected.push(dest);
+    return dest;
   }
   disconnect() {}
 }
@@ -104,6 +124,12 @@ class FakeAudioContext {
     const s = new FakeBufferSource();
     this.bufferSources.push(s);
     return s;
+  }
+  compressors: FakeCompressor[] = [];
+  createDynamicsCompressor() {
+    const c = new FakeCompressor();
+    this.compressors.push(c);
+    return c;
   }
   async decodeAudioData(_ab: ArrayBuffer) {
     this.decoded++;
@@ -197,6 +223,15 @@ describe('AudioEngine envelopes', () => {
 });
 
 describe('AudioEngine controls', () => {
+  test('default volume is 0.55 and the chain runs through a safety compressor', () => {
+    const e = new AudioEngine();
+    e.noteOn(60);
+    const master = lastCtx.gains[0];
+    expect(master.gain.value).toBeCloseTo(0.55, 6);
+    expect(lastCtx.compressors).toHaveLength(1);
+    expect(master.connected).toContain(lastCtx.compressors[0]);
+  });
+
   test('setVolume before first note is applied to the master gain on creation', () => {
     const e = new AudioEngine();
     e.setVolume(0.7);
@@ -302,12 +337,45 @@ describe('sampled instruments', () => {
     expect(src.loop).toBe(false); // piano decays naturally
   });
 
-  test('strings loop so drones keep ringing', async () => {
+  test('strings drone crossfade-loops: partner sources spawn seamlessly', async () => {
     const e = new AudioEngine();
     e.setInstrument('strings');
     await e.preload([60]);
     e.noteOn(60);
-    expect(lastCtx.bufferSources[0].loop).toBe(true);
+    expect(lastCtx.bufferSources).toHaveLength(1);
+    expect(lastCtx.bufferSources[0].loop).toBe(false); // no hard loop seam
+    await vi.advanceTimersByTimeAsync(3000); // past the first segment boundary
+    expect(lastCtx.bufferSources.length).toBeGreaterThanOrEqual(2);
+    // the partner starts inside the sample (loop offset), with a fade-in curve
+    const partner = lastCtx.bufferSources[1];
+    expect(partner.startOffset).toBeGreaterThan(0);
+    // chain keeps going while held (fake ctx clock is frozen, so scheduling
+    // drifts later than real time — advance generously)
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(lastCtx.bufferSources.length).toBeGreaterThanOrEqual(4);
+  });
+
+  test('noteOff stops the crossfade chain', async () => {
+    const e = new AudioEngine();
+    e.setInstrument('strings');
+    await e.preload([60]);
+    e.noteOn(60);
+    await vi.advanceTimersByTimeAsync(3000);
+    e.noteOff(60);
+    const countAtRelease = lastCtx.bufferSources.length;
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(lastCtx.bufferSources.length).toBe(countAtRelease); // no new spawns
+    expect(lastCtx.bufferSources.every((s) => s.stopped !== null)).toBe(true);
+  });
+
+  test('choir is a sampled sustaining instrument', async () => {
+    const e = new AudioEngine();
+    e.setInstrument('choir');
+    await e.preload([60]);
+    expect(vi.mocked(fetch).mock.calls[0][0]).toContain('samples/choir/C4.mp3');
+    e.noteOn(60);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(lastCtx.bufferSources.length).toBeGreaterThanOrEqual(2); // loops like strings
   });
 
   test('each sample file is fetched and decoded once, then cached', async () => {

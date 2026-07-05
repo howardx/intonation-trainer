@@ -79,17 +79,17 @@ export function createControls(handlers: ControlHandlers): Controls {
   volume.min = '0';
   volume.max = '1';
   volume.step = '0.01';
-  volume.value = '0.3';
+  volume.value = '0.55';
   volume.addEventListener('input', () => handlers.onVolume(Number(volume.value)));
 
   const instrument = segmented<Instrument>(
     'Instrument',
     [
-      { value: 'pure', label: 'Pure 纯音' },
       { value: 'piano', label: 'Piano 钢琴' },
       { value: 'strings', label: 'Strings 弦乐' },
+      { value: 'choir', label: 'Choir 人声' },
     ],
-    'pure',
+    'piano',
     handlers.onInstrument,
   );
 

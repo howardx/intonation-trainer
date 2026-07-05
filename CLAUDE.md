@@ -41,11 +41,15 @@ are precached by the service worker, so everything still works offline.
   - exponential ramps target `0.0001`, never 0 (Web Audio throws);
   - polyphony is a `Map<midi, voice>`; each short-mode blip owns its
     auto-release timer so a retrigger can't be killed by a stale timeout;
-  - voices are oscillators ('pure') or AudioBufferSourceNodes (sampled);
-    strings loop their sample's middle for endless drones, piano decays and
-    fires `onNoteEnded` so the UI can clear the highlight; a `noteOn` before
-    its sample is decoded parks a 'pending' voice that plays on arrival
-    unless released first.
+  - voices are oscillators ('pure' — engine-only, not in the UI) or
+    AudioBufferSourceNodes (sampled); sustaining instruments (strings,
+    choir) drone via equal-power crossfade looping (alternating overlapping
+    segments — never `loop=true`, which has an audible seam); piano decays
+    and fires `onNoteEnded` so the UI can clear the highlight; a `noteOn`
+    before its sample is decoded parks a 'pending' voice that plays on
+    arrival unless released first;
+  - the master gain feeds a DynamicsCompressor limiter — keep it, the 0.55
+    default volume with stacked drones relies on it to avoid clipping.
 - `src/keyboard.ts` — builds the piano DOM, translates Pointer Events to
   `onKeyDown/onKeyUp(midi)`. Tracks pointers by `pointerId` for multi-touch.
   `setPointerCapture` is deliberately try/catch'd (throws on already-released

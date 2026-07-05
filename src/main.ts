@@ -5,6 +5,7 @@ import { DEFAULT_WINDOW_START, WINDOW_STARTS } from './notes';
 import { createControls, createInstallHint, setupWakeLock, type LabelMode, type Mode } from './ui';
 
 const engine = new AudioEngine();
+engine.setInstrument('piano'); // classroom standard; UI default matches
 let mode: Mode = 'sustain'; // drone is the core use case
 let windowStart = DEFAULT_WINDOW_START;
 
@@ -74,6 +75,7 @@ const controls = createControls({
   onStopAll: stopAll,
 });
 controls.setWindow(windowStart);
+preloadVisible(); // piano is default — warm the visible window's samples now
 
 app.dataset.labels = 'both' satisfies LabelMode;
 app.appendChild(controls.element);
