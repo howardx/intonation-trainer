@@ -8,7 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy:vercel": "vercel deploy --prod --yes",
+    "deploy:cf": "npx wrangler pages deploy dist --project-name intonation-trainer --branch main --commit-dirty=true",
+    "deploy": "npm run build && npm run deploy:vercel && npm run deploy:cf"
   },
   "devDependencies": {
     "playwright-core": "^1.61.1",

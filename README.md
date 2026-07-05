@@ -1,6 +1,8 @@
 # Intonation Trainer · 音准练习
 
-**Live:** https://music-tool-nu.vercel.app · **Repo:** https://github.com/howardx/intonation-trainer
+**Live:** https://music-tool-nu.vercel.app ·
+**Backup mirror:** https://intonation-trainer-eiu.pages.dev ·
+**Repo:** https://github.com/howardx/intonation-trainer
 
 A single-page, installable, offline-capable web app for training pupils to
 sing in tune. An on-screen 2-octave piano (C3–C5) plays pure sine tones; the
@@ -41,15 +43,19 @@ node scripts/gen-icons.mjs   # regenerate PWA icons (pure Node, no deps)
 ## Deploy
 
 The build output in `dist/` is pure static hosting — no environment variables,
-no rewrites, no server. Deployed to Vercel:
+no rewrites, no server. It ships to two independent free hosts so an outage
+or bandwidth cap on one never takes the app away from new devices:
 
 ```bash
-npm run build
-vercel deploy --prod
+npm run deploy          # build + Vercel production + Cloudflare Pages mirror
+npm run deploy:vercel   # Vercel only (primary: music-tool-nu.vercel.app)
+npm run deploy:cf       # Cloudflare Pages only (mirror: intonation-trainer-eiu.pages.dev)
 ```
 
-If Vercel is slow/blocked from a school network, the same `dist/` can be
-re-deployed unchanged to Cloudflare Pages or Tencent Cloud static hosting.
+Cloudflare Pages free tier has no bandwidth cap, which removes the
+"free-tier exhaustion" outage scenario on the mirror. If both foreign hosts
+are ever blocked from a school network, the same `dist/` can be re-deployed
+unchanged to Tencent Cloud static hosting (requires ICP for a custom domain).
 
 ## Icons
 

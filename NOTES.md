@@ -124,3 +124,18 @@ a physical phone — no real device was available in the build environment.
   landscape viewports. Deliberately restrained per "don't overdo it".
 - The keyboard's horizontal scrolling moved to an inner .keyboard-scroller
   so the critters aren't clipped by the frame's overflow.
+
+## v2.3 (2026-07-05): availability hardening
+
+- Owner raised the free-tier bandwidth risk (Hobby pause = downtime for new
+  devices). Mitigation: the same dist/ now also deploys to **Cloudflare
+  Pages** (https://intonation-trainer-eiu.pages.dev), whose free tier has no
+  bandwidth cap. `npm run deploy` ships build → Vercel prod → CF mirror.
+- Installed devices are unaffected by any host outage (service worker serves
+  the app fully offline); a mirror only matters for first loads.
+- Cloudflare official Claude Code plugin (skills + MCP) installed via
+  `claude plugin install cloudflare@cloudflare` per
+  developers.cloudflare.com/agent-setup — active after a plugin reload.
+- No rate limiting added by design: the site is pure static with no compute,
+  no data, and no endpoints to abuse; Vercel/Cloudflare platform DDoS
+  mitigation applies automatically.
