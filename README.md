@@ -1,5 +1,7 @@
 # Intonation Trainer · 音准练习
 
+**Live:** https://music-tool-nu.vercel.app · **Repo:** https://github.com/howardx/intonation-trainer
+
 A single-page, installable, offline-capable web app for training pupils to
 sing in tune. An on-screen 2-octave piano (C3–C5) plays pure sine tones; the
 **Sustain 持续** mode lets one or more notes ring continuously so students can
