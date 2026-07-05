@@ -11,7 +11,8 @@ npx vitest run src/audio.test.ts   # run a single test file
 npm run build      # tsc --noEmit (strict) + vite build → dist/
 npm run preview    # serve the production build (needed to test the PWA/service worker)
 node scripts/gen-icons.mjs         # regenerate PWA icons (dependency-free)
-vercel deploy --prod               # deploy dist/ (pure static, no env vars)
+npm run deploy     # build + deploy to BOTH hosts: Vercel prod + Cloudflare Pages mirror
+                   # (primary music-tool-nu.vercel.app, mirror intonation-trainer-eiu.pages.dev)
 ```
 
 ## What this is
