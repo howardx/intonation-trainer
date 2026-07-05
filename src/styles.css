@@ -1,0 +1,216 @@
+:root {
+  --white-key: #fffdf7;
+  --black-key: #2a2a35;
+  --active: #ffd166;
+  --accent: #06a77d;
+  --bg: #f4f1ea;
+  --ink: #2a2a35;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+/* ---------- controls bar ---------- */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.segmented {
+  display: inline-flex;
+  background: #fff;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.segmented button {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.segmented button.selected {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+input[type='range'] {
+  width: 120px;
+  accent-color: var(--accent);
+  touch-action: none;
+}
+
+/* ---------- install hint ---------- */
+
+.install-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fff7dd;
+  border: 1px solid var(--active);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.install-hint-close {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+/* ---------- keyboard ---------- */
+
+.keyboard {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 220px;
+  min-width: 480px; /* 15 whites × ~32px; container scrolls on narrow screens */
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+#app > .keyboard {
+  /* momentum scroll wrapper behavior on narrow portrait screens */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.key {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.key.white {
+  flex: 1;
+  min-width: 28px;
+  background: var(--white-key);
+  border-right: 1px solid #d8d2c4;
+  padding-bottom: 10px;
+}
+
+.key.white:last-child {
+  border-right: none;
+}
+
+.key.black {
+  position: absolute;
+  top: 0;
+  height: 58%;
+  width: calc(100% / 15 * 0.62);
+  min-width: 28px;
+  transform: translateX(-50%);
+  background: var(--black-key);
+  color: #fff;
+  border-radius: 0 0 8px 8px;
+  padding-bottom: 8px;
+  z-index: 2;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+}
+
+.key.active,
+.key.black.active {
+  background: var(--active);
+  color: var(--ink);
+}
+
+.key-labels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.label-solfege {
+  font-size: clamp(13px, 2.6vw, 18px);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.key.active .label-solfege {
+  color: var(--ink);
+}
+
+.label-name {
+  font-size: clamp(10px, 2vw, 14px);
+  opacity: 0.75;
+}
+
+.key.black .label-name {
+  font-size: clamp(9px, 1.8vw, 12px);
+  opacity: 0.9;
+}
+
+/* labels visibility modes */
+[data-labels='names'] .label-solfege {
+  display: none;
+}
+
+[data-labels='solfege'] .key.white .label-name {
+  display: none;
+}
